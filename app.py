@@ -1,11 +1,10 @@
-﻿from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_file
 import time
 import csv
 import os
 
 app = Flask(__name__)
 
-# Questions
 questions = [
     "Do you feel tired most of the time?",
     "Do you have trouble sleeping?",
@@ -19,46 +18,43 @@ questions = [
     "Do you feel low energy most of the day?"
 ]
 
-# Home Page
 @app.route('/')
 def index():
     return render_template("index.html", questions=questions)
 
-# Submit Form
 @app.route('/submit', methods=['POST'])
 def submit():
     score = 0
 
-    # Time tracking
+    name = request.form.get("name")
+
     start_time = float(request.form['start_time'])
     end_time = time.time()
 
-    # Calculate score
     for i in range(len(questions)):
         if request.form.get(f'q{i}') == "yes":
             score += 1
 
-    # Typing speed
     total_time = end_time - start_time
     speed = round(len(questions) / total_time * 60, 2)
 
-    # Stress level
+    # Stress level + suggestions
     if score <= 3:
-        stress = "Low 😊"
+        stress = "Low"
         suggestions = [
             "Keep maintaining your healthy lifestyle",
             "Continue regular exercise",
             "Stay socially active"
         ]
     elif score <= 6:
-        stress = "Moderate 😐"
+        stress = "Moderate"
         suggestions = [
             "Try meditation or deep breathing",
             "Take regular breaks",
             "Maintain proper sleep schedule"
         ]
     else:
-        stress = "High 😟"
+        stress = "High"
         suggestions = [
             "Take immediate rest",
             "Talk to friends or family",
@@ -66,25 +62,24 @@ def submit():
             "Consider professional help if needed"
         ]
 
-    # Save to CSV
     file_exists = os.path.isfile("results.csv")
 
+    # SAVE CORRECT ORDER
     with open("results.csv", "a", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
 
         if not file_exists:
-            writer.writerow(["Score", "Speed", "Stress"])
+            writer.writerow(["Name", "Score", "Speed", "Stress"])
 
-        writer.writerow([score, speed, stress])
+        writer.writerow([name, score, speed, stress])
 
-    # Return result page
     return render_template("result.html",
+                           name=name,
                            score=score,
                            speed=speed,
                            stress=stress,
                            suggestions=suggestions)
 
-# History Page
 @app.route('/history')
 def history():
     data = []
@@ -92,11 +87,19 @@ def history():
     if os.path.exists("results.csv"):
         with open("results.csv", "r", encoding="utf-8") as file:
             reader = csv.reader(file)
-            next(reader, None)  # skip header
+            next(reader, None)
             data = list(reader)
 
     return render_template("history.html", data=data)
 
-# Run App
+@app.route('/clear')
+def clear():
+    open("results.csv", "w").close()
+    return "<h3>History Cleared ✅</h3><a href='/'>Go Back</a>"
+
+@app.route('/download')
+def download():
+    return send_file("results.csv", as_attachment=True)
+
 if __name__ == '__main__':
     app.run(debug=True)
